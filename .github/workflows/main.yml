@@ -18,11 +18,12 @@ jobs:
           sudo apt-get install -y ffmpeg pulseaudio xvfb
           pip install moviepy==1.0.3 pillow
 
-      - name: Start Virtual Audio and Voice Room
+      - name: Start Virtual Audio and VDO.Ninja Voice Room
         run: |
           pulseaudio -D --exit-idle-time=-1
           pactl load-module module-null-sink sink_name=VirtualSpeaker sink_properties=device.description=VirtualSpeaker
           pactl set-default-sink VirtualSpeaker
+          export PULSE_SINK=VirtualSpeaker
           nohup xvfb-run --auto-servernum google-chrome --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir=/tmp/chrome --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required "https://vdo.ninja" > chrome.log 2>&1 &
           sleep 15
 
