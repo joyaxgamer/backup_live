@@ -12,12 +12,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Install FFmpeg, Chrome, Audio and Python Dependencies
+      - name: Install FFmpeg, Audio and Python Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg pulseaudio xvfb wget
-          wget -q https://google.com
-          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y ffmpeg pulseaudio xvfb
           pip install moviepy==1.0.3 pillow
 
       - name: Start Virtual Audio and VDO.Ninja Voice Room
