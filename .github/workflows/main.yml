@@ -1,4 +1,5 @@
 name: backup_live
+
 on:
   schedule:
     - cron: '0 */5 * * *'
@@ -8,16 +9,28 @@ jobs:
   stream:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Install FFmpeg and Python Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg
-        pip install moviepy==1.0.3 pillow
+      - name: Install FFmpeg, Chrome, Audio and Python Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg pulseaudio xvfb wget
+          wget -q -O - https://google.com | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://google.com stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          pip install moviepy==1.0.3 pillow
 
-    - name: Start Python Live Stream Loop
-      env:
-        YOUTUBE_KEY: ${{ secrets.YOUTUBE_KEY }}
-      run: python stream.py
+      - name: Start Virtual Audio and VDO.Ninja Voice Room
+        run: |
+          pulseaudio -D --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=VirtualSpeaker sink_properties=device.description=VirtualSpeaker
+          pactl set-default-sink VirtualSpeaker
+          xvfb-run --auto-servernum google-chrome --no-sandbox --disable-gpu --autoplay-policy=no-user-gesture-required "https://vdo.ninja" &
+          sleep 10
+
+      - name: Start Python Live Stream Loop
+        env:
+          YOUTUBE_KEY: ${{ secrets.YOUTUBE_KEY }}
+        run: python stream.py
