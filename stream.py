@@ -3,9 +3,8 @@ import time
 import subprocess
 
 def start_direct_challenge_live():
-    # आपकी रिपोजिटरी के हिसाब से बिल्कुल सही फाइल नाम
+    # आपकी वीडियो फ़ाइल और वर्चुअल वॉइस चैट ऑडियो इनपुट
     video_file = "lovee_video.mp4"
-    audio_file = "lovee_audio.mp3"
     
     # आपका लाइव यूट्यूब स्ट्रीमिंग यूआरएल और सीक्रेट चाबी
     STREAM_URL = "rtmp://a.rtmp.youtube.com/live2"
@@ -15,17 +14,16 @@ def start_direct_challenge_live():
     command = [
         "ffmpeg", "-re",
         "-stream_loop", "-1", "-i", video_file,
-        "-stream_loop", "-1", "-i", audio_file,
-        "-vf", "scale=1280:720,format=yuv420p",  # <-- यह लाइन वीडियो का साइज़ एरर ठीक करेगी
+        "-f", "pulse", "-i", "VirtualSpeaker.monitor",
+        "-vf", "scale=1280:720,format=yuv420p",
         "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "1500k",
         "-maxrate", "1500k", "-bufsize", "3000k", "-pix_fmt", "yuv420p",
         "-g", "48", "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
         "-map", "0:v:0", "-map", "1:a:0",
         "-f", "flv", rtmp_url
-
     ]
     
-    print("⚡ डायरेक्ट की बाईपास एक्टिव: लाइव ब्रॉडकास्ट हवा में शुरू हो रहा है...")
+    print("⚡ वॉइस लाइव चैट बाईपास एक्टिव: लाइव ब्रॉडकास्ट शुरू हो रहा है...")
     
     while True:
         try:
