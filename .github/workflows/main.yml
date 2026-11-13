@@ -23,8 +23,8 @@ jobs:
           pulseaudio -D --exit-idle-time=-1
           pactl load-module module-null-sink sink_name=VirtualSpeaker sink_properties=device.description=VirtualSpeaker
           pactl set-default-sink VirtualSpeaker
-          xvfb-run --auto-servernum google-chrome --no-sandbox --disable-gpu --autoplay-policy=no-user-gesture-required "https://vdo.ninja" &
-          sleep 10
+          nohup xvfb-run --auto-servernum google-chrome --no-sandbox --disable-gpu --autoplay-policy=no-user-gesture-required "https://vdo.ninja" > chrome.log 2>&1 &
+          sleep 15
 
       - name: Start Python Live Stream Loop
         env:
