@@ -16,10 +16,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg pulseaudio xvfb wget
-          wget -q -O - https://google.com | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://google.com stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          wget -q https://google.com
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
           pip install moviepy==1.0.3 pillow
 
       - name: Start Virtual Audio and VDO.Ninja Voice Room
