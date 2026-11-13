@@ -8,33 +8,48 @@ def start_direct_challenge_live():
     STREAM_KEY = os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd"
     rtmp_url = f"{STREAM_URL}/{STREAM_KEY}"
 
-    # 1. Virtual Audio Setup
+    # 1. PulseAudio को साफ करके VirtualSpeaker बनाना
+    subprocess.run(["pulseaudio", "-k"], stderr=subprocess.DEVNULL)
+    time.sleep(1)
     subprocess.run(["pulseaudio", "-D", "--exit-idle-time=-1"])
-    subprocess.run(["pactl", "load-module", "module-null-sink", "sink_name=VirtualSpeaker", "sink_properties=device.description=VirtualSpeaker"])
+    subprocess.run([
+        "pactl", "load-module", "module-null-sink",
+        "sink_name=VirtualSpeaker",
+        "sink_properties=device.description=VirtualSpeaker"
+    ])
     subprocess.run(["pactl", "set-default-sink", "VirtualSpeaker"])
 
     env = os.environ.copy()
     env["PULSE_SINK"] = "VirtualSpeaker"
+    env["PULSE_SOURCE"] = "VirtualSpeaker.monitor"
     env["DISPLAY"] = ":99"
 
-    # 2. Virtual Screen aur Chrome (VDO.Ninja) Chalu Karna
+    # 2. Virtual Screen और Chrome चालू करना
     subprocess.Popen(["Xvfb", ":99", "-screen", "0", "1280x720x24"], env=env)
     time.sleep(3)
 
     vdo_url = "https://vdo.ninja"
     subprocess.Popen([
-        "google-chrome", "--no-sandbox", "--disable-gpu",
-        "--disable-dev-shm-usage", "--user-data-dir=/tmp/chrome",
+        "google-chrome",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--user-data-dir=/tmp/chrome_vdo",
         "--autoplay-policy=no-user-gesture-required",
-        "--window-size=1280,720", vdo_url
+        "--use-fake-device-for-media-stream",
+        "--alsa-output-device=pulse",
+        "--window-size=1280,720",
+        vdo_url
     ], env=env)
-    
-    time.sleep(12)
-    # Screen ke beech mein click taaki audio unmute ho jaye
-    subprocess.run(["xdotool", "mousemove", "640", "360", "click", "1"], env=env)
-    time.sleep(3)
 
-    # 3. FFmpeg se Video + Voice YouTube par Bhejna
+    time.sleep(12)
+    # अनम्यूट करने के लिए क्लिक
+    subprocess.run(["xdotool", "mousemove", "640", "360", "click", "1"], env=env)
+    time.sleep(2)
+    subprocess.run(["xdotool", "key", "m"], env=env)
+    time.sleep(2)
+
+    # 3. FFmpeg से Video + Voice YouTube पर भेजना
     command = [
         "ffmpeg", "-re",
         "-stream_loop", "-1", "-i", video_file,
@@ -47,7 +62,7 @@ def start_direct_challenge_live():
         "-f", "flv", rtmp_url
     ]
 
-    print("⚡ Live Stream + Voice Room Active!")
+    print("⚡ Live Stream + Voice Active!")
     while True:
         try:
             subprocess.run(command, env=env, check=True)
