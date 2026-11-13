@@ -4,7 +4,7 @@ import subprocess
 
 def start_direct_challenge_live():
     video_file = "lovee_video.mp4"
-    STREAM_URL = "rtmp://://youtube.com"
+    STREAM_URL = "rtmp://a.rtmp.youtube.com/live2"
     STREAM_KEY = os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd"
     rtmp_url = f"{STREAM_URL}/{STREAM_KEY}"
 
