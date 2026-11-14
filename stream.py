@@ -107,7 +107,7 @@ def start_ngrok_permanent():
 
     while True:
         try:
-            tunnel = ngrok.connect(5000, domain=STATIC_DOMAIN)
+            tunnel = ngrok.connect(5000, hostname=STATIC_DOMAIN)
             print(f"✅ PERMANENT VOICE LINK ACTIVE: {tunnel.public_url}", flush=True)
             while True:
                 time.sleep(30)
