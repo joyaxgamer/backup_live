@@ -15,11 +15,8 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg pulseaudio curl
+          sudo apt-get install -y ffmpeg pulseaudio openssh-client
           pip install flask flask-socketio simple-websocket
-          curl -fsSL https://github.com -o cloudflared
-          chmod +x cloudflared
-          sudo mv cloudflared /usr/local/bin/
 
       - name: Start Live Stream with Direct Web Voice
         run: python3 stream.py
