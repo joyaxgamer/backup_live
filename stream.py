@@ -91,13 +91,9 @@ def start_stream():
     threading.Thread(target=start_tunnel, daemon=True).start()
 
     video_file = "lovee_video.mp4"
-    
-    # Stream Key ko saaf karne ka tarika (agar secret me URL bhi dala ho to sirf key nikal lega)
-    raw_key = (os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd").strip()
-    clean_key = raw_key.split("/")[-1]
-    
-    host = "://youtube.com"
-    rtmp_url = f"rtmp://{host}/live2/{clean_key}"
+    STREAM_URL = "rtmp://" + "a.rtmp." + "youtube.com/live2"
+    STREAM_KEY = "ay8r-px8b-ammh-qq0j-24qd"
+    rtmp_url = f"{STREAM_URL}/{STREAM_KEY}"
 
     command = [
         "ffmpeg", "-re",
