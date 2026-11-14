@@ -15,9 +15,12 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg pulseaudio xvfb xdotool
+          sudo apt-get install -y ffmpeg pulseaudio wget
+          pip install flask flask-socketio eventlet
+          wget -q https://github.com
+          sudo dpkg -i cloudflared-linux-amd64.deb
 
-      - name: Start Live Stream with Voice
+      - name: Start Live Stream with Direct Web Voice
         env:
           YOUTUBE_KEY: ${{ secrets.YOUTUBE_KEY }}
         run: python3 stream.py
