@@ -1,5 +1,4 @@
 import os
-import re
 import time
 import threading
 import subprocess
@@ -19,22 +18,31 @@ HTML_PAGE = """
   <p id="status">Mic band hai</p>
   <script src="https://socket.io"></script>
   <script>
-    const socket = io();
+    const socket = io({ transports: ['websocket', 'polling'] });
     async function startMic() {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const ctx = new AudioContext({ sampleRate: 16000 });
-      const src = ctx.createMediaStreamSource(stream);
-      const proc = ctx.createScriptProcessor(4096, 1, 1);
-      src.connect(proc);
-      proc.connect(ctx.destination);
-      proc.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        const pcm = new Int16Array(input.length);
-        for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
-        socket.emit('audio', pcm.buffer);
-      };
-      document.getElementById('status').innerText = "✅ Aapki aawaz YouTube Live par ja rahi hai!";
-      document.getElementById('btn').style.display = "none";
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ sampleRate: 16000 });
+        await ctx.resume();
+        const src = ctx.createMediaStreamSource(stream);
+        const proc = ctx.createScriptProcessor(4096, 1, 1);
+        src.connect(proc);
+        proc.connect(ctx.destination);
+        proc.onaudioprocess = (e) => {
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) {
+            let s = Math.max(-1, Math.min(1, input[i]));
+            pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          socket.emit('audio', pcm.buffer);
+        };
+        document.getElementById('status').innerText = "✅ Aapki aawaz YouTube Live par ja rahi hai!";
+        document.getElementById('btn').style.display = "none";
+      } catch (err) {
+        document.getElementById('status').innerText = "❌ Error: " + err.message;
+      }
     }
   </script>
 </body>
@@ -52,7 +60,10 @@ def handle_audio(data):
     global pacat_proc
     if pacat_proc and pacat_proc.stdin:
         try:
-            pacat_proc.stdin.write(data)
+            if isinstance(data, bytes):
+                pacat_proc.stdin.write(data)
+            else:
+                pacat_proc.stdin.write(bytes(data))
             pacat_proc.stdin.flush()
         except Exception:
             pass
@@ -84,7 +95,7 @@ def start_stream():
     subprocess.run(["pactl", "set-default-sink", "VirtualSpeaker"])
 
     pacat_proc = subprocess.Popen(
-        ["pacat", "--playback", "--device=VirtualSpeaker", "--format=s16le", "--rate=16000", "--channels=1"],
+        ["pacat", "--playback", "--device=VirtualSpeaker", "--latency-msec=50", "--format=s16le", "--rate=16000", "--channels=1"],
         stdin=subprocess.PIPE
     )
 
