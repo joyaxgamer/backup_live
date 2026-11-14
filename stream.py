@@ -2,23 +2,23 @@ import os
 import time
 import threading
 import subprocess
-from flask import Flask, render_template_string
-from flask_socketio import SocketIO
+from flask import Flask, request, render_template_string
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+PIPE_PATH = "/tmp/live_audio.pcm"
+if not os.path.exists(PIPE_PATH):
+    os.mkfifo(PIPE_PATH)
 
 HTML_PAGE = """
 <!DOCTYPE html>
 <html>
 <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Talkto-urs Live Voice</title></head>
 <body style="background:#111;color:#fff;text-align:center;font-family:sans-serif;padding-top:50px;">
-  <h2>Talkto-urs Live Voice Room</h2>
-  <button id="btn" onclick="startMic()" style="padding:15px 30px;font-size:18px;background:#28a745;color:#fff;border:none;border-radius:8px;">🎤 Mic On Karein</button>
-  <p id="status">Mic band hai</p>
-  <script src="https://socket.io"></script>
+  <h2>Talkto-urs Direct Voice</h2>
+  <button id="btn" onclick="startMic()" style="padding:18px 35px;font-size:20px;background:#28a745;color:#fff;border:none;border-radius:10px;">🎤 Mic On Karein</button>
+  <p id="status" style="margin-top:20px;font-size:16px;">Mic band hai</p>
   <script>
-    const socket = io({ transports: ['websocket', 'polling'] });
     async function startMic() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -29,6 +29,8 @@ HTML_PAGE = """
         const proc = ctx.createScriptProcessor(4096, 1, 1);
         src.connect(proc);
         proc.connect(ctx.destination);
+
+        let chunks = [];
         proc.onaudioprocess = (e) => {
           const input = e.inputBuffer.getChannelData(0);
           const pcm = new Int16Array(input.length);
@@ -36,9 +38,20 @@ HTML_PAGE = """
             let s = Math.max(-1, Math.min(1, input[i]));
             pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
           }
-          socket.emit('audio', pcm.buffer);
+          chunks.push(pcm);
         };
-        document.getElementById('status').innerText = "✅ Aapki aawaz YouTube Live par ja rahi hai!";
+
+        setInterval(() => {
+          if (chunks.length === 0) return;
+          const total = chunks.reduce((acc, c) => acc + c.length, 0);
+          const merged = new Int16Array(total);
+          let offset = 0;
+          for (const c of chunks) { merged.set(c, offset); offset += c.length; }
+          chunks = [];
+          fetch('/audio', { method: 'POST', body: merged.buffer }).catch(() => {});
+        }, 250);
+
+        document.getElementById('status').innerText = "✅ Aapki aawaz seedha YouTube par ja rahi hai!";
         document.getElementById('btn').style.display = "none";
       } catch (err) {
         document.getElementById('status').innerText = "❌ Error: " + err.message;
@@ -49,24 +62,39 @@ HTML_PAGE = """
 </html>
 """
 
+latest_audio = b""
+audio_lock = threading.Lock()
+
 @app.route('/')
 def index():
     return render_template_string(HTML_PAGE)
 
-pacat_proc = None
+@app.route('/audio', methods=['POST'])
+def receive_audio():
+    global latest_audio
+    data = request.get_data()
+    if data:
+        with audio_lock:
+            latest_audio += data
+    return "OK", 200
 
-@socketio.on('audio')
-def handle_audio(data):
-    global pacat_proc
-    if pacat_proc and pacat_proc.stdin:
-        try:
-            if isinstance(data, bytes):
-                pacat_proc.stdin.write(data)
-            else:
-                pacat_proc.stdin.write(bytes(data))
-            pacat_proc.stdin.flush()
-        except Exception:
-            pass
+def pipe_feeder():
+    global latest_audio
+    # 16000 Hz, 16-bit mono = 32000 bytes per second (8000 bytes per 0.25s)
+    silence = b"\x00" * 8000
+    with open(PIPE_PATH, "wb", buffering=0) as f:
+        while True:
+            time.sleep(0.25)
+            with audio_lock:
+                if latest_audio:
+                    chunk = latest_audio
+                    latest_audio = b""
+                else:
+                    chunk = silence
+            try:
+                f.write(chunk)
+            except Exception:
+                pass
 
 def start_tunnel():
     try:
@@ -82,23 +110,13 @@ def start_tunnel():
             text=True
         )
         for line in ssh.stdout:
-            print("TUNNEL:", line.strip(), flush=True)
+            if "lhr.life" in line:
+                print("VOICE_LINK:", line.strip(), flush=True)
     except Exception as e:
         print(f"Tunnel error: {e}", flush=True)
 
 def start_stream():
-    global pacat_proc
-    subprocess.run(["pulseaudio", "-k"], stderr=subprocess.DEVNULL)
-    time.sleep(1)
-    subprocess.run(["pulseaudio", "-D", "--exit-idle-time=-1"])
-    subprocess.run(["pactl", "load-module", "module-null-sink", "sink_name=VirtualSpeaker"])
-    subprocess.run(["pactl", "set-default-sink", "VirtualSpeaker"])
-
-    pacat_proc = subprocess.Popen(
-        ["pacat", "--playback", "--device=VirtualSpeaker", "--latency-msec=50", "--format=s16le", "--rate=16000", "--channels=1"],
-        stdin=subprocess.PIPE
-    )
-
+    threading.Thread(target=pipe_feeder, daemon=True).start()
     threading.Thread(target=start_tunnel, daemon=True).start()
 
     video_file = "lovee_video.mp4"
@@ -107,7 +125,7 @@ def start_stream():
     command = [
         "ffmpeg", "-re",
         "-stream_loop", "-1", "-i", video_file,
-        "-f", "pulse", "-i", "VirtualSpeaker.monitor",
+        "-f", "s16le", "-ar", "16000", "-ac", "1", "-i", PIPE_PATH,
         "-vf", "scale=1280:720,format=yuv420p",
         "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "1500k",
         "-maxrate", "1500k", "-bufsize", "3000k", "-pix_fmt", "yuv420p",
@@ -121,4 +139,4 @@ def start_stream():
 
 if __name__ == "__main__":
     threading.Thread(target=start_stream, daemon=True).start()
-    socketio.run(app, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
+    app.run(host="0.0.0.0", port=5000, threaded=True)
