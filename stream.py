@@ -7,7 +7,7 @@ from flask import Flask, render_template_string
 from flask_socketio import SocketIO
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 HTML_PAGE = """
 <!DOCTYPE html>
@@ -45,7 +45,6 @@ HTML_PAGE = """
 def index():
     return render_template_string(HTML_PAGE)
 
-# PulseAudio में सीधा ऑडियो भेजने के लिए pacat पाइप
 pacat_proc = None
 
 @socketio.on('audio')
@@ -58,7 +57,25 @@ def handle_audio(data):
         except Exception:
             pass
 
-def start_services():
+def start_tunnel():
+    try:
+        cf = subprocess.Popen(
+            ["cloudflared", "tunnel", "--url", "http://localhost:5000"],
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        for line in cf.stderr:
+            match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+            if match:
+                print("\n" + "="*50, flush=True)
+                print("🎤 AAPKA VOICE LINK TAIYAR HAI:", flush=True)
+                print(match.group(0), flush=True)
+                print("="*50 + "\n", flush=True)
+                break
+    except Exception as e:
+        print(f"Tunnel error: {e}", flush=True)
+
+def start_stream():
     global pacat_proc
     subprocess.run(["pulseaudio", "-k"], stderr=subprocess.DEVNULL)
     time.sleep(1)
@@ -71,21 +88,11 @@ def start_services():
         stdin=subprocess.PIPE
     )
 
-    # Cloudflare से फ्री पब्लिक लिंक बनाना
-    cf = subprocess.Popen(["cloudflared", "tunnel", "--url", "http://localhost:5000"], stderr=subprocess.PIPE, text=True)
-    for line in cf.stderr:
-        match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-        if match:
-            print("\n" + "="*50)
-            print("🎤 AAPKA VOICE LINK TAIYAR HAI:")
-            print(match.group(0))
-            print("="*50 + "\n")
-            break
+    threading.Thread(target=start_tunnel, daemon=True).start()
 
-    # YouTube Live Stream शुरू करना
     video_file = "lovee_video.mp4"
     STREAM_KEY = os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd"
-    rtmp_url = f"rtmp://a.rtmp.youtube.com/live2{STREAM_KEY}"
+    rtmp_url = f"rtmp://://youtube.com{STREAM_KEY}"
 
     command = [
         "ffmpeg", "-re",
@@ -103,5 +110,5 @@ def start_services():
         time.sleep(3)
 
 if __name__ == "__main__":
-    threading.Thread(target=start_services, daemon=True).start()
-    socketio.run(app, host="0.0.0.0", port=5000)
+    threading.Thread(target=start_stream, daemon=True).start()
+    socketio.run(app, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
