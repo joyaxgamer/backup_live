@@ -59,13 +59,20 @@ def handle_audio(data):
 
 def start_tunnel():
     try:
+        # SSH key बनाना ताकि localhost.run तुरंत लिंक दे दे
+        os.makedirs(os.path.expanduser("~/.ssh"), exist_ok=True)
+        key_path = os.path.expanduser("~/.ssh/id_rsa")
+        if not os.path.exists(key_path):
+            subprocess.run(["ssh-keygen", "-t", "rsa", "-N", "", "-f", key_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
         ssh = subprocess.Popen(
-            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", "80:localhost:5000", "nokey@localhost.run"],
+            ["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", "80:localhost:5000", "nokey@localhost.run"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True
         )
         for line in ssh.stdout:
+            print("TUNNEL:", line.strip(), flush=True)
             match = re.search(r"https://[a-zA-Z0-9.-]+\.(?:lhr\.life|localhost\.run)", line)
             if match:
                 print("\n" + "="*50, flush=True)
@@ -91,7 +98,7 @@ def start_stream():
     threading.Thread(target=start_tunnel, daemon=True).start()
 
     video_file = "lovee_video.mp4"
-    STREAM_URL = "rtmp://" + "a.rtmp." + "youtube.com/live2"
+    STREAM_URL = "rtmp://" + "a.rtmp." + "://youtube.com"
     STREAM_KEY = "ay8r-px8b-ammh-qq0j-24qd"
     rtmp_url = f"{STREAM_URL}/{STREAM_KEY}"
 
