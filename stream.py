@@ -92,7 +92,7 @@ def start_stream():
 
     video_file = "lovee_video.mp4"
     STREAM_KEY = os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd"
-    rtmp_url = f"rtmp://://youtube.com{STREAM_KEY}"
+    rtmp_url = f"rtmp://a.rtmp.youtube.com/live2{STREAM_KEY}"
 
     command = [
         "ffmpeg", "-re",
