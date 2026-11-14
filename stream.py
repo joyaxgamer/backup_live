@@ -3,6 +3,7 @@ import time
 import threading
 import subprocess
 from flask import Flask, request, render_template_string
+from pyngrok import ngrok, conf
 
 app = Flask(__name__)
 
@@ -15,7 +16,7 @@ HTML_PAGE = """
 <html>
 <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Talkto-urs Live Voice</title></head>
 <body style="background:#111;color:#fff;text-align:center;font-family:sans-serif;padding-top:50px;">
-  <h2>Talkto-urs Direct Voice</h2>
+  <h2>Talkto-urs Live Voice Room</h2>
   <button id="btn" onclick="startMic()" style="padding:18px 35px;font-size:20px;background:#28a745;color:#fff;border:none;border-radius:10px;">🎤 Mic On Karein</button>
   <p id="status" style="margin-top:20px;font-size:16px;">Mic band hai</p>
   <script>
@@ -48,7 +49,11 @@ HTML_PAGE = """
           let offset = 0;
           for (const c of chunks) { merged.set(c, offset); offset += c.length; }
           chunks = [];
-          fetch('/audio', { method: 'POST', body: merged.buffer }).catch(() => {});
+          fetch('/audio', {
+            method: 'POST',
+            headers: { 'ngrok-skip-browser-warning': 'true' },
+            body: merged.buffer
+          }).catch(() => {});
         }, 250);
 
         document.getElementById('status').innerText = "✅ Aapki aawaz seedha YouTube par ja rahi hai!";
@@ -80,7 +85,6 @@ def receive_audio():
 
 def pipe_feeder():
     global latest_audio
-    # 16000 Hz, 16-bit mono = 32000 bytes per second (8000 bytes per 0.25s)
     silence = b"\x00" * 8000
     with open(PIPE_PATH, "wb", buffering=0) as f:
         while True:
@@ -96,28 +100,30 @@ def pipe_feeder():
             except Exception:
                 pass
 
-def start_tunnel():
-    try:
-        os.makedirs(os.path.expanduser("~/.ssh"), exist_ok=True)
-        key_path = os.path.expanduser("~/.ssh/id_rsa")
-        if not os.path.exists(key_path):
-            subprocess.run(["ssh-keygen", "-t", "rsa", "-N", "", "-f", key_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def start_ngrok_permanent():
+    NGROK_TOKEN = "3M5KV9BBuu4ZkRy1NS5e6btY8L8_7z1YQbBW31GLmL8zmarCj"
+    STATIC_DOMAIN = "outboard-aftermath-dice.ngrok-free.dev"
+    conf.get_default().auth_token = NGROK_TOKEN
 
-        ssh = subprocess.Popen(
-            ["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", "80:localhost:5000", "nokey@localhost.run"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
-        )
-        for line in ssh.stdout:
-            if "lhr.life" in line:
-                print("VOICE_LINK:", line.strip(), flush=True)
-    except Exception as e:
-        print(f"Tunnel error: {e}", flush=True)
+    while True:
+        try:
+            tunnel = ngrok.connect(5000, domain=STATIC_DOMAIN)
+            print(f"✅ PERMANENT VOICE LINK ACTIVE: {tunnel.public_url}", flush=True)
+            while True:
+                time.sleep(30)
+                if not ngrok.get_tunnels():
+                    break
+        except Exception as e:
+            print(f"Ngrok reconnecting: {e}", flush=True)
+            try:
+                ngrok.kill()
+            except Exception:
+                pass
+            time.sleep(5)
 
 def start_stream():
     threading.Thread(target=pipe_feeder, daemon=True).start()
-    threading.Thread(target=start_tunnel, daemon=True).start()
+    threading.Thread(target=start_ngrok_permanent, daemon=True).start()
 
     video_file = "lovee_video.mp4"
     rtmp_url = "".join(["rtmp:", "//", "a.rtmp.", "youtube", ".com/live2/", "ay8r-px8b-ammh-qq0j-24qd"])
