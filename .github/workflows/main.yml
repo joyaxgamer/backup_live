@@ -17,11 +17,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg pulseaudio curl
           pip install flask flask-socketio eventlet
-          sudo mkdir -p --mode=0755 /usr/share/keyrings
-          curl -fsSL https://cloudflare.com | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-          echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://cloudflare.com any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
-          sudo apt-get update
-          sudo apt-get install -y cloudflared
+          curl -L --output cloudflared https://github.com
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
 
       - name: Start Live Stream with Direct Web Voice
         env:
