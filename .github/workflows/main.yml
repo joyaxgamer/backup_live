@@ -22,6 +22,4 @@ jobs:
           sudo mv cloudflared /usr/local/bin/
 
       - name: Start Live Stream with Direct Web Voice
-        env:
-          YOUTUBE_KEY: ${{ secrets.YOUTUBE_KEY }}
         run: python3 stream.py
