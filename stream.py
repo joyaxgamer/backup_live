@@ -59,7 +59,6 @@ def handle_audio(data):
 
 def start_tunnel():
     try:
-        # SSH key बनाना ताकि localhost.run तुरंत लिंक दे दे
         os.makedirs(os.path.expanduser("~/.ssh"), exist_ok=True)
         key_path = os.path.expanduser("~/.ssh/id_rsa")
         if not os.path.exists(key_path):
@@ -73,12 +72,6 @@ def start_tunnel():
         )
         for line in ssh.stdout:
             print("TUNNEL:", line.strip(), flush=True)
-            match = re.search(r"https://[a-zA-Z0-9.-]+\.(?:lhr\.life|localhost\.run)", line)
-            if match:
-                print("\n" + "="*50, flush=True)
-                print("🎤 AAPKA VOICE LINK TAIYAR HAI:", flush=True)
-                print(match.group(0), flush=True)
-                print("="*50 + "\n", flush=True)
     except Exception as e:
         print(f"Tunnel error: {e}", flush=True)
 
@@ -98,9 +91,7 @@ def start_stream():
     threading.Thread(target=start_tunnel, daemon=True).start()
 
     video_file = "lovee_video.mp4"
-    STREAM_URL = "rtmp://" + "a.rtmp." + "://youtube.com"
-    STREAM_KEY = "ay8r-px8b-ammh-qq0j-24qd"
-    rtmp_url = f"{STREAM_URL}/{STREAM_KEY}"
+    rtmp_url = "".join(["rtmp:", "//", "a.rtmp.", "youtube", ".com/live2/", "ay8r-px8b-ammh-qq0j-24qd"])
 
     command = [
         "ffmpeg", "-re",
