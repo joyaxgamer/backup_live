@@ -8,15 +8,19 @@ from pyngrok import conf, installer
 app = Flask(__name__)
 
 PIPE_PATH = "/tmp/live_audio.pcm"
+TEXT_PATH = "/tmp/active_speaker.txt"
+
 if not os.path.exists(PIPE_PATH):
     os.mkfifo(PIPE_PATH)
 
-# कंट्रोल सेटिंग्स
-ADMIN_PASS = "7860"  # आपका एडमिन पासवर्ड (इसे आप बदल भी सकते हैं)
+with open(TEXT_PATH, "w") as f:
+    f.write("Talkto-urs Live Voice")
+
+ADMIN_PASS = "7860"
 room_locked = False
 mute_all_members = False
 muted_users = set()
-active_users = {}  # {username: last_seen_timestamp}
+active_users = {}
 
 MEMBER_HTML = """
 <!DOCTYPE html>
@@ -26,7 +30,7 @@ MEMBER_HTML = """
   <h2>Talkto-urs Live Voice Room</h2>
   <div id="joinBox">
     <input id="uname" placeholder="Apna Naam Likhein..." style="padding:12px;font-size:16px;border-radius:8px;border:none;width:70%;max-width:280px;"><br><br>
-    <button onclick="startMic()" style="padding:15px 30px;font-size:18px;background:#28a745;color:#fff;border:none;border-radius:10px;">🎤 Join & Mic On</button>
+    <button onclick="startMic()" style="padding:15px 30px;font-size:18px;background:#28a745;color:#fff;border:none;border-radius:10px;">Join and Mic On</button>
   </div>
   <p id="status" style="margin-top:20px;font-size:16px;color:#0f0;"></p>
   <script>
@@ -42,7 +46,6 @@ MEMBER_HTML = """
         const proc = ctx.createScriptProcessor(2048, 1, 1);
         src.connect(proc);
         proc.connect(ctx.destination);
-
         let chunks = [];
         proc.onaudioprocess = (e) => {
           const input = e.inputBuffer.getChannelData(0);
@@ -53,7 +56,6 @@ MEMBER_HTML = """
           }
           chunks.push(pcm);
         };
-
         setInterval(async () => {
           if (chunks.length === 0) return;
           const total = chunks.reduce((acc, c) => acc + c.length, 0);
@@ -67,15 +69,13 @@ MEMBER_HTML = """
               headers: { 'ngrok-skip-browser-warning': 'true' },
               body: merged.buffer
             });
-            const txt = await res.text();
-            document.getElementById('status').innerText = txt;
+            document.getElementById('status').innerText = await res.text();
           } catch (e) {}
         }, 150);
-
         document.getElementById('joinBox').style.display = "none";
-        document.getElementById('status').innerText = "✅ Connected! Aap bol sakte hain.";
+        document.getElementById('status').innerText = "Connected! Aapka naam live screen par dikh raha hai.";
       } catch (err) {
-        document.getElementById('status').innerText = "❌ Error: " + err.message;
+        document.getElementById('status').innerText = "Error: " + err.message;
       }
     }
   </script>
@@ -88,23 +88,20 @@ ADMIN_HTML = """
 <html>
 <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin Control</title></head>
 <body style="background:#181818;color:#fff;font-family:sans-serif;padding:20px;text-align:center;">
-  <h2>🎛️ Talkto-urs Admin Panel</h2>
+  <h2>Talkto-urs Admin Panel</h2>
   <div id="loginBox">
     <input id="pass" type="password" placeholder="Admin Password (7860)" style="padding:10px;font-size:16px;">
     <button onclick="login()" style="padding:10px 20px;font-size:16px;background:#007bff;color:#fff;border:none;">Login</button>
   </div>
   <div id="panel" style="display:none;">
-    <button onclick="cmd('toggle_lock')" id="lockBtn" style="padding:12px 20px;margin:5px;font-size:16px;border-radius:8px;border:none;">🔒 Room Lock/Unlock</button>
-    <button onclick="cmd('toggle_mute_all')" id="muteAllBtn" style="padding:12px 20px;margin:5px;font-size:16px;border-radius:8px;border:none;">🔇 Mute All Members</button>
+    <button onclick="cmd('toggle_lock')" id="lockBtn" style="padding:12px 20px;margin:5px;font-size:16px;border-radius:8px;border:none;">Room Lock</button>
+    <button onclick="cmd('toggle_mute_all')" id="muteAllBtn" style="padding:12px 20px;margin:5px;font-size:16px;border-radius:8px;border:none;">Mute All</button>
     <h3>Active Members:</h3>
     <div id="userList"></div>
   </div>
   <script>
     let pwd = "";
-    function login() {
-      pwd = document.getElementById('pass').value;
-      refresh();
-    }
+    function login() { pwd = document.getElementById('pass').value; refresh(); }
     async function cmd(action, target="") {
       await fetch(`/admin_api?pass=${pwd}&action=${action}&target=${encodeURIComponent(target)}`);
       refresh();
@@ -115,22 +112,21 @@ ADMIN_HTML = """
       const data = await res.json();
       document.getElementById('loginBox').style.display = "none";
       document.getElementById('panel').style.display = "block";
-      document.getElementById('lockBtn').innerText = data.locked ? "🔓 Unlock Room (Abhi Locked Hai)" : "🔒 Lock Room (Abhi Open Hai)";
+      document.getElementById('lockBtn').innerText = data.locked ? "Unlock Room" : "Lock Room";
       document.getElementById('lockBtn').style.background = data.locked ? "#dc3545" : "#28a745";
-      document.getElementById('muteAllBtn').innerText = data.mute_all ? "🔊 Unmute All Members" : "🔇 Mute All Members";
+      document.getElementById('muteAllBtn').innerText = data.mute_all ? "Unmute All" : "Mute All";
       document.getElementById('muteAllBtn').style.background = data.mute_all ? "#dc3545" : "#ffc107";
-      
       let html = "";
       for (const u of data.users) {
         const isMuted = data.muted.includes(u);
         html += `<div style="background:#252525;padding:10px;margin:8px auto;max-width:350px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-          <span>👤 <b>${u}</b></span>
+          <span><b>${u}</b></span>
           <button onclick="cmd('toggle_user', '${u}')" style="padding:6px 12px;background:${isMuted ? '#dc3545' : '#28a745'};color:#fff;border:none;border-radius:5px;">
-            ${isMuted ? 'Muted (Unmute Karein)' : 'Active (Mute Karein)'}
+            ${isMuted ? 'Unmute' : 'Mute'}
           </button>
         </div>`;
       }
-      document.getElementById('userList').innerHTML = html || "<p>Abhi koi member nahi bol raha</p>";
+      document.getElementById('userList').innerHTML = html || "<p>Abhi koi member nahi hai</p>";
     }
     setInterval(() => { if (pwd) refresh(); }, 3000);
   </script>
@@ -140,6 +136,27 @@ ADMIN_HTML = """
 
 latest_audio = b""
 audio_lock = threading.Lock()
+
+def update_overlay_loop():
+    last_text = ""
+    while True:
+        now = time.time()
+        speaking = [u for u, t in active_users.items() if (now - t < 3) and (u not in muted_users) and not mute_all_members]
+        if speaking:
+            clean_names = ["".join(c for c in name if c.isalnum() or c in " _-") for name in speaking]
+            new_text = "Live On Mic: " + ", ".join(clean_names)
+        else:
+            new_text = "Join Voice Chat - Link in Chat"
+        if new_text != last_text:
+            try:
+                tmp_file = TEXT_PATH + ".tmp"
+                with open(tmp_file, "w") as f:
+                    f.write(new_text)
+                os.replace(tmp_file, TEXT_PATH)
+                last_text = new_text
+            except Exception:
+                pass
+        time.sleep(1)
 
 @app.route('/')
 def index():
@@ -174,21 +191,16 @@ def receive_audio():
     global latest_audio
     user = request.args.get('user', 'Guest')
     now = time.time()
-    
-    # अगर रूम लॉक है और यूज़र नया है, तो ब्लॉक करें
     if room_locked and (user not in active_users or now - active_users[user] > 10):
-        return "🔒 Room abhi Admin ne lock kar rakha hai.", 200
-
+        return "Room abhi lock hai.", 200
     active_users[user] = now
-
     if mute_all_members or user in muted_users:
-        return "🔇 Admin ne aapko Mute kar rakha hai.", 200
-
+        return "Admin ne aapko Mute kar rakha hai.", 200
     data = request.get_data()
     if data:
         with audio_lock:
             latest_audio += data
-    return "✅ Aapki aawaz YouTube Live par ja rahi hai!", 200
+    return "Aapki aawaz aur naam YouTube Live par chal raha hai!", 200
 
 def pipe_feeder():
     global latest_audio
@@ -222,20 +234,17 @@ def start_ngrok_permanent():
 def start_stream():
     threading.Thread(target=pipe_feeder, daemon=True).start()
     threading.Thread(target=start_ngrok_permanent, daemon=True).start()
-
+    threading.Thread(target=update_overlay_loop, daemon=True).start()
     video_file = "lovee_video.mp4"
     rtmp_url = "".join(["rtmp:", "//", "a.rtmp.", "youtube", ".com/live2/", "ay8r-px8b-ammh-qq0j-24qd"])
-
+    vf_filter = f"scale=1280:720,format=yuv420p,drawtext=textfile={TEXT_PATH}:reload=1:fontcolor=white:fontsize=30:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h-70"
     command = [
-        "ffmpeg", "-re",
-        "-stream_loop", "-1", "-i", video_file,
+        "ffmpeg", "-re", "-stream_loop", "-1", "-i", video_file,
         "-f", "s16le", "-ar", "16000", "-ac", "1", "-i", PIPE_PATH,
-        "-vf", "scale=1280:720,format=yuv420p",
-        "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "1500k",
+        "-vf", vf_filter, "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "1500k",
         "-maxrate", "1500k", "-bufsize", "1000k", "-pix_fmt", "yuv420p",
         "-g", "48", "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-map", "0:v:0", "-map", "1:a:0",
-        "-f", "flv", rtmp_url
+        "-map", "0:v:0", "-map", "1:a:0", "-f", "flv", rtmp_url
     ]
     while True:
         subprocess.run(command)
