@@ -3,7 +3,7 @@ import time
 import threading
 import subprocess
 from flask import Flask, request, render_template_string
-from pyngrok import ngrok, conf
+from pyngrok import conf, installer
 
 app = Flask(__name__)
 
@@ -103,23 +103,19 @@ def pipe_feeder():
 def start_ngrok_permanent():
     NGROK_TOKEN = "3M5KV9BBuu4ZkRy1NS5e6btY8L8_7z1YQbBW31GLmL8zmarCj"
     STATIC_DOMAIN = "outboard-aftermath-dice.ngrok-free.dev"
-    conf.get_default().auth_token = NGROK_TOKEN
+    
+    ngrok_path = conf.get_default().ngrok_path
+    if not os.path.exists(ngrok_path):
+        installer.install_ngrok(ngrok_path)
+
+    subprocess.run([ngrok_path, "config", "add-authtoken", NGROK_TOKEN])
 
     while True:
-        try:
-            tunnel = ngrok.connect(5000, hostname=STATIC_DOMAIN)
-            print(f"✅ PERMANENT VOICE LINK ACTIVE: {tunnel.public_url}", flush=True)
-            while True:
-                time.sleep(30)
-                if not ngrok.get_tunnels():
-                    break
-        except Exception as e:
-            print(f"Ngrok reconnecting: {e}", flush=True)
-            try:
-                ngrok.kill()
-            except Exception:
-                pass
-            time.sleep(5)
+        print(f"✅ STARTING PERMANENT LINK: https://{STATIC_DOMAIN}", flush=True)
+        proc = subprocess.Popen([ngrok_path, "http", f"--url={STATIC_DOMAIN}", "5000"])
+        proc.wait()
+        print("Ngrok reconnecting in 3s...", flush=True)
+        time.sleep(3)
 
 def start_stream():
     threading.Thread(target=pipe_feeder, daemon=True).start()
