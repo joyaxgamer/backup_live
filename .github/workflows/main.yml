@@ -16,8 +16,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg pulseaudio curl
-          pip install flask flask-socketio eventlet
-          curl -L --output cloudflared https://github.com
+          pip install flask flask-socketio simple-websocket
+          ARCH=$(dpkg --print-architecture)
+          curl -fsSL "https://github.com{ARCH}" -o cloudflared
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
 
