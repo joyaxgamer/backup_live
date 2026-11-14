@@ -15,8 +15,8 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg pulseaudio openssh-client
-          pip install flask flask-socketio simple-websocket
+          sudo apt-get install -y ffmpeg
+          pip install flask pyngrok
 
-      - name: Start Live Stream with Direct Web Voice
+      - name: Start Permanent 24/7 Live Stream and Voice
         run: python3 stream.py
