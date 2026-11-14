@@ -59,19 +59,19 @@ def handle_audio(data):
 
 def start_tunnel():
     try:
-        cf = subprocess.Popen(
-            ["cloudflared", "tunnel", "--url", "http://localhost:5000"],
-            stderr=subprocess.PIPE,
+        ssh = subprocess.Popen(
+            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", "80:localhost:5000", "nokey@localhost.run"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True
         )
-        for line in cf.stderr:
-            match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+        for line in ssh.stdout:
+            match = re.search(r"https://[a-zA-Z0-9.-]+\.(?:lhr\.life|localhost\.run)", line)
             if match:
                 print("\n" + "="*50, flush=True)
                 print("🎤 AAPKA VOICE LINK TAIYAR HAI:", flush=True)
                 print(match.group(0), flush=True)
                 print("="*50 + "\n", flush=True)
-                break
     except Exception as e:
         print(f"Tunnel error: {e}", flush=True)
 
