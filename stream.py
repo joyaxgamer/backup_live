@@ -1,55 +1,92 @@
 import os
+import re
 import time
+import threading
 import subprocess
+from flask import Flask, render_template_string
+from flask_socketio import SocketIO
 
-def start_direct_challenge_live():
-    video_file = "lovee_video.mp4"
-    STREAM_URL = "rtmp://a.rtmp.youtube.com/live2"
-    STREAM_KEY = os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd"
-    rtmp_url = f"{STREAM_URL}/{STREAM_KEY}"
+app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-    # 1. PulseAudio को साफ करके VirtualSpeaker बनाना
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Talkto-urs Live Voice</title></head>
+<body style="background:#111;color:#fff;text-align:center;font-family:sans-serif;padding-top:50px;">
+  <h2>Talkto-urs Live Voice Room</h2>
+  <button id="btn" onclick="startMic()" style="padding:15px 30px;font-size:18px;background:#28a745;color:#fff;border:none;border-radius:8px;">🎤 Mic On Karein</button>
+  <p id="status">Mic band hai</p>
+  <script src="https://socket.io"></script>
+  <script>
+    const socket = io();
+    async function startMic() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      const src = ctx.createMediaStreamSource(stream);
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      src.connect(proc);
+      proc.connect(ctx.destination);
+      proc.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const pcm = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
+        socket.emit('audio', pcm.buffer);
+      };
+      document.getElementById('status').innerText = "✅ Aapki aawaz YouTube Live par ja rahi hai!";
+      document.getElementById('btn').style.display = "none";
+    }
+  </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_PAGE)
+
+# PulseAudio में सीधा ऑडियो भेजने के लिए pacat पाइप
+pacat_proc = None
+
+@socketio.on('audio')
+def handle_audio(data):
+    global pacat_proc
+    if pacat_proc and pacat_proc.stdin:
+        try:
+            pacat_proc.stdin.write(data)
+            pacat_proc.stdin.flush()
+        except Exception:
+            pass
+
+def start_services():
+    global pacat_proc
     subprocess.run(["pulseaudio", "-k"], stderr=subprocess.DEVNULL)
     time.sleep(1)
     subprocess.run(["pulseaudio", "-D", "--exit-idle-time=-1"])
-    subprocess.run([
-        "pactl", "load-module", "module-null-sink",
-        "sink_name=VirtualSpeaker",
-        "sink_properties=device.description=VirtualSpeaker"
-    ])
+    subprocess.run(["pactl", "load-module", "module-null-sink", "sink_name=VirtualSpeaker"])
     subprocess.run(["pactl", "set-default-sink", "VirtualSpeaker"])
 
-    env = os.environ.copy()
-    env["PULSE_SINK"] = "VirtualSpeaker"
-    env["PULSE_SOURCE"] = "VirtualSpeaker.monitor"
-    env["DISPLAY"] = ":99"
+    pacat_proc = subprocess.Popen(
+        ["pacat", "--playback", "--device=VirtualSpeaker", "--format=s16le", "--rate=16000", "--channels=1"],
+        stdin=subprocess.PIPE
+    )
 
-    # 2. Virtual Screen और Chrome चालू करना
-    subprocess.Popen(["Xvfb", ":99", "-screen", "0", "1280x720x24"], env=env)
-    time.sleep(3)
+    # Cloudflare से फ्री पब्लिक लिंक बनाना
+    cf = subprocess.Popen(["cloudflared", "tunnel", "--url", "http://localhost:5000"], stderr=subprocess.PIPE, text=True)
+    for line in cf.stderr:
+        match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+        if match:
+            print("\n" + "="*50)
+            print("🎤 AAPKA VOICE LINK TAIYAR HAI:")
+            print(match.group(0))
+            print("="*50 + "\n")
+            break
 
-    vdo_url = "https://vdo.ninja"
-    subprocess.Popen([
-        "google-chrome",
-        "--no-sandbox",
-        "--disable-gpu",
-        "--disable-dev-shm-usage",
-        "--user-data-dir=/tmp/chrome_vdo",
-        "--autoplay-policy=no-user-gesture-required",
-        "--use-fake-device-for-media-stream",
-        "--alsa-output-device=pulse",
-        "--window-size=1280,720",
-        vdo_url
-    ], env=env)
+    # YouTube Live Stream शुरू करना
+    video_file = "lovee_video.mp4"
+    STREAM_KEY = os.environ.get("YOUTUBE_KEY") or "ay8r-px8b-ammh-qq0j-24qd"
+    rtmp_url = f"rtmp://://youtube.com{STREAM_KEY}"
 
-    time.sleep(12)
-    # अनम्यूट करने के लिए क्लिक
-    subprocess.run(["xdotool", "mousemove", "640", "360", "click", "1"], env=env)
-    time.sleep(2)
-    subprocess.run(["xdotool", "key", "m"], env=env)
-    time.sleep(2)
-
-    # 3. FFmpeg से Video + Voice YouTube पर भेजना
     command = [
         "ffmpeg", "-re",
         "-stream_loop", "-1", "-i", video_file,
@@ -61,14 +98,10 @@ def start_direct_challenge_live():
         "-map", "0:v:0", "-map", "1:a:0",
         "-f", "flv", rtmp_url
     ]
-
-    print("⚡ Live Stream + Voice Active!")
     while True:
-        try:
-            subprocess.run(command, env=env, check=True)
-        except Exception as e:
-            print(f"Restarting stream: {e}")
-            time.sleep(3)
+        subprocess.run(command)
+        time.sleep(3)
 
 if __name__ == "__main__":
-    start_direct_challenge_live()
+    threading.Thread(target=start_services, daemon=True).start()
+    socketio.run(app, host="0.0.0.0", port=5000)
