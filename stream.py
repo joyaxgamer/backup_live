@@ -236,7 +236,7 @@ def start_stream():
     threading.Thread(target=start_ngrok_permanent, daemon=True).start()
     threading.Thread(target=update_overlay_loop, daemon=True).start()
     video_file = "lovee_video.mp4"
-    rtmp_url = "".join(["rtmp:", "//", "a.rtmp.", "youtube", ".com/live2/", "ay8r-px8b-ammh-qq0j-24qd"])
+    rtmp_url = "".join(["rtmp:", "//", "a.rtmp.", "youtube", ".com/live2/", "rey7-p2b6-wa5t-87xv-2cs1"])
     vf_filter = f"scale=1280:720,format=yuv420p,drawtext=textfile={TEXT_PATH}:reload=1:fontcolor=white:fontsize=30:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h-70"
     command = [
         "ffmpeg", "-re", "-stream_loop", "-1", "-i", video_file,
